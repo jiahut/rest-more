@@ -1,5 +1,6 @@
 require 'rest-core'
 
+# >> f = RestCore::Flurry.new api_key: xxxxx , access_code: xxxx
 module RestCore
   Flurry = Builder.client(:api_key, :access_code) do
     use Timeout       , 10
@@ -14,7 +15,7 @@ module RestCore
       use ErrorDetector, lambda{ |env|
         env[RESPONSE_BODY].kind_of?(Hash) &&
         (env[RESPONSE_BODY]['error'] || env[RESPONSE_BODY]['error_code'])}
-        
+
       use JsonResponse, true
     end
   end
@@ -24,10 +25,19 @@ end
 module RestCore::Flurry::Client
   # see: http://wiki.flurry.com/index.php?title=AppInfo
   # >> f.app_info
-  # => {"@platform"=>"iPhone", "@name"=>"PicCollage",
-  #     "@createdDate"=>"2011-07-24", "@category"=>"Photography",
-  #     "@version"=>"1.0", "@generatedDate"=>"9/15/11 7:08 AM",
-  #     "version"=>[{"@name"=>"2.1", ...
+  # => {"@platform"=>"iPhone", 
+  #     "@name"=>"微点", 
+  #     "@createdDate"=>"2013-05-22", 
+  #     "@category"=>"Lifestyle", 
+  #     "@version"=>"1.0", 
+  #     "@generatedDate"=>"7/16/13 9:50 PM", 
+  #     "version"=> [
+  #       {"@name"=>"1.5", "@createdDate"=>"2013-07-04"}, 
+  #       {"@name"=>"1.1", "@createdDate"=>"2013-06-08"}, 
+  #       {"@name"=>"1.0", "@createdDate"=>"2013-05-22"}
+  #      ]
+  #    }
+
   def app_info query={}
     get('appInfo/getApplication', query)
   end
@@ -45,20 +55,36 @@ module RestCore::Flurry::Client
   end
 
   # see: http://wiki.flurry.com/index.php?title=AppMetrics
-  # >> f.metrics('ActiveUsers', {}, :weeks => 4)
-  # => [["2011-09-19",  6516], ["2011-09-18", 43920], ["2011-09-17", 45412],
-  #     ["2011-09-16", 40972], ["2011-09-15", 37587], ["2011-09-14", 34918],
-  #     ["2011-09-13", 35223], ["2011-09-12", 37750], ["2011-09-11", 45057],
-  #     ["2011-09-10", 44077], ["2011-09-09", 36683], ["2011-09-08", 34871],
-  #     ["2011-09-07", 35960], ["2011-09-06", 35829], ["2011-09-05", 37777],
-  #     ["2011-09-04", 40233], ["2011-09-03", 39306], ["2011-09-02", 33467],
-  #     ["2011-09-01", 31558], ["2011-08-31", 32096], ["2011-08-30", 34076],
-  #     ["2011-08-29", 34950], ["2011-08-28", 40456], ["2011-08-27", 41332],
-  #     ["2011-08-26", 37737], ["2011-08-25", 34392], ["2011-08-24", 33560],
-  #     ["2011-08-23", 34722]]
+  # Where the METRIC_NAME is one of the following:
+
+  # ActiveUsers  Total number of unique users who accessed the application per day.
+  # ActiveUsersByWeek  Total number of unique users who accessed the application per week. Only returns data for dates which specify at least a complete calendar week.
+  # ActiveUsersByMonth   Total number of unique users who accessed the application per month. Only returns info for dates which specify at least a complete calendar month.
+  # NewUsers   Total number of unique users who used the application for the first time per day.
+  # MedianSessionLength  Median length of a user session per day.
+  # AvgSessionLength   Average length of a user session per day.
+  # Sessions   The total number of times users accessed the application per day.
+  # RetainedUsers  Total number of users who remain active users of the application per day.
+  # PageViews  Total number of page views per day.
+  # AvgPageViewsPerSession   Average page views per session for each day.
+  # eg:
+  # >> f.metrics 'ActiveUsers',{}, :days => 4
+  # => [["2013-07-17", 0], ["2013-07-16", 110], ["2013-07-15", 207], ["2013-07-14", 247]]
+
+
   def metrics path, query={}, opts={}
     get("appMetrics/#{path}", *calculate_query_and_opts(query, opts)
       )['day'].map{ |i| [i['@date'], i['@value'].to_i] }.reverse
+  end
+
+  # bug:
+  # assign :days => 1
+  def active_users_yesterday
+    (metrics 'ActiveUsers', {} ,:days => 2)[1][1]
+  end
+
+  def sessions_yesterday
+    (metrics 'Sessions', {} ,:days => 2)[1][1]
   end
 
   # >> f.weekly(f.metrics('ActiveUsers', {}, :weeks => 4))
